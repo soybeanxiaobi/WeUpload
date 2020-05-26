@@ -1,0 +1,22 @@
+@import '~zent/css/index';
+body {
+  padding: 16px;
+  background-color: #f3f3f3;
+  .page-title {
+    font-size: 18px;
+    font-weight: normal;
+    color: #808080;
+    margin-bottom: 8px;
+  }
+  .app-wrap {
+    padding: 16px;
+    background-color: #fff;
+    margin-bottom: 48px;;
+  }
+}
+
+.button-disabled {
+  color: #c8c9cc !important;
+  cursor: not-allowed;
+  pointer-events: none;
+}
