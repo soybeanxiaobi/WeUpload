@@ -11,12 +11,12 @@ const { exec } = require('child_process');
 const fs = require('fs-extra');
 
 /** 文件合并存放位置 */
-const uploadFilePath = path.join(__dirname, '../public');
+const uploadFilePath = path.join(__dirname, '../static');
 /** 流存放位置 */
-const chunksPath = path.join(__dirname, '../public/stream');
+const chunksPath = path.join(__dirname, '../static/stream');
 /** 第三方资源存放位置 */
-const thirdPartyResourcePath = path.join(__dirname, '../third-party-resources');
-const thirdPartyResourceChunkPath = path.join(__dirname, '../third-party-resources/stream');
+const thirdPartyResourcePath = path.join(__dirname, '../third-party-static');
+const thirdPartyResourceChunkPath = path.join(__dirname, '../third-party-static/stream');
 const app = new Koa();
 const router = new Router();
 /** koa-multer实例 */
@@ -26,6 +26,23 @@ const koaMulterUpload = koaMulter({ dest: chunksPath });
 app.use(cors());
 app.use(bodyParser());
 app.use(router.routes());
+
+/**
+ * 查询文件上传记录,如果存在,则断点续传
+ */
+router.get('/get-upload-record', async (ctx) => {
+  const { name } = ctx.query;
+  const streamPath = `${chunksPath}/${name}`;
+  let streamList;
+  if (fs.existsSync(streamPath)) {
+    streamList = fs.readdirSync(streamPath);
+  }
+  ctx.status = 200;
+  ctx.body = {
+    hasChunk: !!streamList,
+    uploadedChunkCount: streamList ? streamList.length : 1,
+  };
+});
 
 /**
  * 校验文件是否已上传
@@ -45,7 +62,7 @@ router.get('/chekck-file-upload', async (ctx) => {
 /**
  * 使用@koa/multer实现断点上传
  */
-router.post('/koa-multer/upload-chunk', koaMulterUpload.single('file'), async (ctx) => {
+router.post('/upload-chunk', koaMulterUpload.single('file'), async (ctx) => {
   /**
    * axios方法
    * ctx.req.file 文件流信息
@@ -54,19 +71,27 @@ router.post('/koa-multer/upload-chunk', koaMulterUpload.single('file'), async (c
   const { name, index } = ctx.req.body;
   const file = ctx.req.file;
   const chunkName = `${chunksPath}/${name}/${name}-chunk-${index}`;
+  /** 创建对应流的目录 */
+  if (!fs.existsSync(`${chunksPath}/${name}`)) {
+    fs.mkdirsSync(`${chunksPath}/${name}`);
+  }
   /**
    * 重命名二进制流文件
    * 注意路径需要对齐
    */
   fs.renameSync(file.path, chunkName);
   ctx.status = 200;
-  ctx.res.end('upload-chunk-success');
+  ctx.res.end(index);
 });
+
+/**
+ *
+ */
 
 /**
  * 对流进行存储
  */
-router.post('/koa-multer/merge-chunk', async (ctx) => {
+router.post('/merge-chunk', async (ctx) => {
   /**
    * axios.post方法
    * ctx.request.body 请求参数
@@ -77,16 +102,16 @@ router.post('/koa-multer/merge-chunk', async (ctx) => {
   fs.writeFileSync(file, '');
   // 2.读取所有chunk数据
   // 3.开始写入数据
-  for (let idx = 0; idx < chunkCount; idx++) {
+  for (let idx = 1; idx < chunkCount; idx++) {
     /**
      * chunk文件名格式: fileName + '-' + index
      * 例如: 《陪著你走》伴奏Variation.pdf-0
      */
     const chunkFile = `${chunksPath}/${fileName}/${fileName}-chunk-${idx}`;
     fs.appendFileSync(file, fs.readFileSync(chunkFile));
-    /** 删除chunk文件 */
-    // fs.unlinkSync(chunkFile);
   }
+  /** 删除chunk文件 */
+  fs.emptyDirSync(`${chunksPath}/${fileName}`);
   ctx.status = 200;
   ctx.res.end('上传成功');
 });
@@ -104,7 +129,6 @@ router.get('/open-upload-finder', async (ctx) => {
 // 获取已上传文件
 router.get('/get-upload-files', async (ctx) => {
   const uploadFileList = fs.readdirSync(uploadFilePath);
-  console.log('uploadFileList', uploadFileList);
   ctx.body = {
     code: 200,
     msg: 'success',

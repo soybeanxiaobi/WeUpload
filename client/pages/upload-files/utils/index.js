@@ -1,4 +1,4 @@
-import uploadFiles from "..";
+import uploadFiles from '..';
 
 const now = +new Date();
 let index = 0;
@@ -33,7 +33,19 @@ export function converSize(limit) {
   return sizestr;
 }
 
+export const setUploadFilesToLocalStorage = (uploadFiles) => {
+  const uploadFileList = getDataFromLocalStorage() || [];
+  console.log('uploadFiles', uploadFiles);
+  if(uploadFiles instanceof Array) {
+    uploadFileList.push(...uploadFiles);
+  } else {
+    uploadFileList.push(uploadFiles);
+  }
+  window.localStorage.setItem('uploadFileList', JSON.stringify(uploadFileList));
+};
 
-// export const setUploadFileToLocalStorage =  => {
-
-// }
+export const getDataFromLocalStorage = (fileName = 'uploadFileList') => {
+  const uploadFileListStr = window.localStorage.getItem(fileName);
+  const uploadFileList = JSON.parse(uploadFileListStr);
+  return uploadFileList;
+};

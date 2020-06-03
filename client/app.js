@@ -5,14 +5,14 @@ import './app.scss';
 
 export default () => (
   <>
-    <h1 className="page-title">上传文件</h1>
+    <h1 className="page-title">留图请留种</h1>
     <div className="app-wrap">
       <UploadFiles />
     </div>
 
-    <h1 className="page-title">已上传文件</h1>
+    {/* <h1 className="page-title">已上传文件</h1>
     <div className="app-wrap">
       <FetchFiles />
-    </div>
+    </div> */}
   </>
 );

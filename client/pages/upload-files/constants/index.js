@@ -1,11 +1,13 @@
 import React from 'react';
 import { Tag, Link, InlineLoading } from 'zent';
 import { converSize } from '../utils';
+import ChunkShow from '../components/chunkShow';
 
 export const uploadStatus = {
   0: '未上传',
   1: '上传中',
   2: '已上传',
+  3: '暂停中',
 };
 
 export const mockData = [
@@ -49,14 +51,14 @@ export const getColumns = ({ events }) => {
     {
       title: '上传状态',
       name: 'uploadStatus',
-      bodyRender: ({ uploadStatus, currentUploadChunk, chunkCount, uploadProgeress = 0 }) => {
+      bodyRender: ({ uploadStatus, currentChunk, chunkCount, uploadProgeress = 0 }) => {
         if (uploadStatus === 0) {
           return <Tag theme="grey">未上传</Tag>;
         } else if (uploadStatus === 1) {
           return (
             <>
               <span>
-                {currentUploadChunk} / {chunkCount}
+                {currentChunk} / {chunkCount}
               </span>
               <InlineLoading loading icon="circle" iconText={`${uploadProgeress.toFixed(2)}%`} textPosition="right" />
             </>
@@ -70,6 +72,20 @@ export const getColumns = ({ events }) => {
               </Link>
             </>
           );
+        } else if (uploadStatus === 3) {
+          return (
+            <>
+              <Tag theme="yellow" style={{ marginBottom: 5 }}>
+                暂停中
+              </Tag>
+              <p>
+                <span>
+                  切片数量: {currentChunk} / {chunkCount}
+                </span>
+              </p>
+              <p>当前切片进度: {uploadProgeress.toFixed(2)}%</p>
+            </>
+          );
         }
       },
     },
@@ -78,14 +94,14 @@ export const getColumns = ({ events }) => {
       textAlign: 'right',
       bodyRender: (record) => (
         <div className="col-action">
-          <span onClick={handleStopUpload} className={record.uploadStatus !== 1 ? 'button-disabled' : ''}>
+          <span onClick={() => handleStopUpload(record)} className={record.uploadStatus !== 1 ? 'button-disabled' : ''}>
             暂停
           </span>
           <span
             onClick={() => handleStartUpload(record)}
-            className={record.uploadStatus !== 0 ? 'button-disabled' : ''}
+            className={![0, 3].includes(record.uploadStatus) ? 'button-disabled' : ''}
           >
-            上传
+            {record.uploadStatus === 3 ? '继续上传' : '上传'}
           </span>
         </div>
       ),

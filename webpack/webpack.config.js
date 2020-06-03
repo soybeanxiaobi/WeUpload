@@ -1,14 +1,14 @@
-const path = require("path");
-const Webpack = require("webpack");
-const HtmlWebpackPlugin = require("html-webpack-plugin");
-const { CleanWebpackPlugin } = require("clean-webpack-plugin");
+const path = require('path');
+const Webpack = require('webpack');
+const HtmlWebpackPlugin = require('html-webpack-plugin');
+const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 
 module.exports = {
-  mode: "development",
-  entry: ["../client/main.js"],
+  mode: 'development',
+  entry: ['../client/main.js'],
   output: {
-    path: path.join(__dirname, "../dist"),
-    filename: "[name].[hash:8].js",
+    path: path.join(__dirname, '../dist'),
+    filename: '[name].[hash:8].js',
   },
   module: {
     rules: [
@@ -19,14 +19,15 @@ module.exports = {
           {
             loader: 'babel-loader',
             options: {
-              presets: ['@babel/react']
-            }
-          }
+              presets: ['@babel/react'],
+              plugins: ['@babel/plugin-proposal-class-properties'],
+            },
+          },
         ],
       },
       {
         test: /\.s?css$/,
-        use: ["style-loader", "css-loader", "sass-loader"],
+        use: ['style-loader', 'css-loader', 'sass-loader'],
         exclude: /\.m\.s?css$/,
       },
     ],
@@ -34,12 +35,12 @@ module.exports = {
   devServer: {
     hot: true,
     port: 3000,
-    contentBase: path.join(__dirname, "../dist"),
+    contentBase: path.join(__dirname, '../dist'),
   },
   plugins: [
     new CleanWebpackPlugin(),
     new HtmlWebpackPlugin({
-      template: path.resolve(__dirname, "./template.html"),
+      template: path.resolve(__dirname, './template.html'),
     }),
     new Webpack.HotModuleReplacementPlugin(),
   ],
