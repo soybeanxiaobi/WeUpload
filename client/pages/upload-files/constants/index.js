@@ -32,7 +32,7 @@ export const mockData = [
   },
 ];
 
-export const getColumns = ({ events }) => {
+export const getColumns = ({ chunkType, events }) => {
   const { handleStartUpload, handleOpenFinder, handleStopUpload } = events;
   return [
     {
@@ -55,12 +55,21 @@ export const getColumns = ({ events }) => {
         if (uploadStatus === 0) {
           return <Tag theme="grey">未上传</Tag>;
         } else if (uploadStatus === 1) {
+          console.log('chunkType', chunkType);
+          const isSize = chunkType === 'size';
           return (
             <>
-              <span>
-                {currentChunk} / {chunkCount}
-              </span>
-              <InlineLoading loading icon="circle" iconText={`${uploadProgeress.toFixed(2)}%`} textPosition="right" />
+              {isSize && (
+                <span>
+                  {currentChunk} / {chunkCount}
+                </span>
+              )}
+              <InlineLoading
+                loading
+                icon="circle"
+                iconText={`${uploadProgeress.toFixed(2)}%`}
+                textPosition={isSize ? 'right' : 'left'}
+              />
             </>
           );
         } else if (uploadStatus === 2) {

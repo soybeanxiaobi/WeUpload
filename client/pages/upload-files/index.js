@@ -19,13 +19,18 @@ export default () => {
   /** 根据大小切分切片,默认5M */
   const FILE_CHUNK_SIZE = 5 * 1024 * 1024;
   const inputRef = useRef(null);
-  const [chunkType, setChunkType] = useState('size');
+  const [chunkType, setChunkType] = useState('num');
   const [fileList, setFileList] = useState([]);
 
   // 加载文件
   useEffect(() => {
     axios.get(`${host}/get-upload-files`);
   }, []);
+
+  const readFileByPath = () => {
+    // const result = await axios.get(`${host}/read-file?path=${record.fileName}`);
+    console.log('result', result);
+  };
 
   // 打开文件选择框
   const handleAddFile = () => {
@@ -36,13 +41,14 @@ export default () => {
   // 选择文件并添加到表格里
   const handleFileSelect = async (e) => {
     const File = e.target.files[0];
+    console.log('File', File);
     if (File) {
       // 判断文件是否有上传记录,如果有,则断点续传
       const { data: { hasChunk = false, uploadedChunkCount = 0 } = {} } = await axios.get(
         `${host}/get-upload-record?name=${File.name}`,
       );
       const chunkCount = chunkType === 'num' ? FILE_CHUNK_NUM : Math.ceil(File.size / FILE_CHUNK_SIZE);
-      const filesToCurrent = {
+      let filesToCurrent = {
         id: createUploadId(),
         fileName: File.name,
         fileType: File.type,
@@ -53,32 +59,27 @@ export default () => {
         uploadProgeress: hasChunk ? 100 : 0,
         chunkCount,
       };
+      /**
+       * 判断文件是否已经上传
+       * true: 已上传文件,秒传
+       * false: 未找到文件,重新上传
+       */
+      const result = await axios.get(`${host}/chekck-file-upload?name=${File.name}`);
+      const { data: isUpload } = result;
+      if (isUpload) {
+        filesToCurrent.uploadStatus = 2;
+        Notify.success('文件已存在,秒传成功');
+      }
       setFileList([...fileList, filesToCurrent]);
     }
   };
 
   // 处理上传逻辑
   const handleUpload = async (record) => {
-    // const { id, fileName } = record;
-    /**
-     * 判断文件是否已经上传
-     * true: 已上传文件,秒传
-     * false: 未找到文件,重新上传
-     */
-    const result = await axios.get(`${host}/chekck-file-upload?name=${record.fileName}`);
-    const { data: isUpload } = result;
-    if (isUpload) {
-      const newFileList = [...fileList];
-      const currentUploadItem = find(newFileList, { id: record.id });
-      currentUploadItem.uploadStatus = 2;
-      setFileList([...newFileList]);
-      Notify.success('文件已存在,秒传成功');
-    } else {
-      // 生成切片
-      const chunkList = createFileChunk(record);
-      // 开始上传文件
-      uploadFiles(record, chunkList);
-    }
+    // 生成切片
+    const chunkList = createFileChunk(record);
+    // 开始上传文件
+    uploadFiles(record, chunkList);
   };
 
   // 生成文件切片
@@ -158,7 +159,6 @@ export default () => {
   // 打开文件夹
   const handleOpenFinder = () => {
     axios.get(`${host}/open-upload-finder`);
-    setFileList([]);
   };
 
   // 暂停上传
@@ -218,7 +218,7 @@ export default () => {
           清空文件夹
         </Button>
       </div>
-      <Grid key="id" datasets={fileList} columns={getColumns({ events })} />
+      <Grid key="id" datasets={fileList} columns={getColumns({ chunkType, events })} />
     </div>
   );
 };

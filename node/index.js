@@ -37,9 +37,10 @@ router.get('/get-upload-record', async (ctx) => {
   if (fs.existsSync(streamPath)) {
     streamList = fs.readdirSync(streamPath);
   }
+  const hasChunk = streamList ? Boolean(streamList.length) : false;
   ctx.status = 200;
   ctx.body = {
-    hasChunk: !!streamList,
+    hasChunk,
     uploadedChunkCount: streamList ? streamList.length : 1,
   };
 });
