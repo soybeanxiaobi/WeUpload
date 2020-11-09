@@ -61,6 +61,19 @@ router.get('/chekck-file-upload', async (ctx) => {
 });
 
 /**
+ * 接收单个文件上传
+ */
+router.post('/upload-single-file', koaMulterUpload.single('file'), async (ctx) => {
+  const { fileName } = ctx.req.body;
+  const file = ctx.req.file;
+  const fileFullPath = `${uploadFilePath}/${fileName}`;
+  // fs.writeFileSync(fileFullPath, '');
+  await fs.appendFileSync(fileFullPath, file);
+  ctx.status = 200;
+  ctx.res.end('上传成功');
+})
+
+/**
  * 使用@koa/multer实现断点上传
  */
 router.post('/upload-chunk', koaMulterUpload.single('file'), async (ctx) => {
@@ -129,12 +142,13 @@ router.get('/open-upload-finder', async (ctx) => {
 
 // 获取已上传文件
 router.get('/get-upload-files', async (ctx) => {
-  const uploadFileList = fs.readdirSync(uploadFilePath);
-  ctx.body = {
-    code: 200,
-    msg: 'success',
-    data: uploadFileList,
-  };
+  ctx.body = '我是get-upload-files返回的数据'
+  // const uploadFileList = fs.readdirSync(uploadFilePath);
+  // ctx.body = {
+  //   code: 200,
+  //   msg: 'success',
+  //   data: uploadFileList,
+  // };
 });
 
 // 清空已上传文件

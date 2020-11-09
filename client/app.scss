@@ -2,6 +2,17 @@
 body {
   padding: 16px;
   background-color: #f3f3f3;
+
+  .block {
+    width: 50%;
+    padding: 10px;
+    background-color: #fff;
+
+    .upload-grid {
+      margin-top: 16px;
+    }
+  }
+
   .page-title {
     font-size: 18px;
     font-weight: normal;

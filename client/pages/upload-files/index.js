@@ -3,7 +3,7 @@ import { Grid, Button, Notify, Radio } from 'zent';
 import axios from 'axios';
 import find from 'lodash/find';
 
-import { getColumns } from './constants';
+import { getColumns, mockData } from './constants';
 import { createUploadId } from './utils';
 
 import './index.scss';
@@ -21,11 +21,26 @@ export default () => {
   const inputRef = useRef(null);
   const [chunkType, setChunkType] = useState('num');
   const [fileList, setFileList] = useState([]);
+  /**
+   * @index {number} 切片序列值
+   * @progress {number} 切片上传进度
+   */
+  const [chunkUploadList, setChunkUploadList] = useState([]);
 
-  // 加载文件
-  useEffect(() => {
-    axios.get(`${host}/get-upload-files`);
-  }, []);
+  // const getInitFiles = async () => {
+  //   const result = await axios.get(`${host}/get-upload-files`, {
+  //     responseType: 'blob'
+  //   });
+  //   console.log('result.data', result.data);
+  //   const blobUrl = URL.createObjectURL(result.data);
+  //   console.log('=== blobUrl ===', blobUrl);
+  //   window.open(blobUrl);
+  // }
+
+  //   // 加载文件
+  //   useEffect(() => {
+  //     getInitFiles()
+  //   }, []);
 
   const readFileByPath = () => {
     // const result = await axios.get(`${host}/read-file?path=${record.fileName}`);
@@ -74,8 +89,41 @@ export default () => {
     }
   };
 
-  // 处理上传逻辑
-  const handleUpload = async (record) => {
+  // 处理单文件上传逻辑
+  const handleSingleUpload = async ({ id, File, fileName }) => {
+    const newFileList = [...fileList];
+    const currentUploadItem = find(newFileList, { id });
+    currentUploadItem.uploadStatus = 1;
+    setFileList([...newFileList]);
+
+    let formData = new FormData();
+    formData.append('name', fileName);
+    formData.append('file', File);
+    return axios({
+      method: 'post',
+      data: formData,
+      header: {
+        'Content-type': 'multipart/form-data',
+      },
+      url: `${host}/upload-single-file`,
+      cancelToken: axiosSource.token,
+      onUploadProgress: (uploadInfo) => {
+        // 计算上传百分比
+        const progress = (uploadInfo.loaded / uploadInfo.total) * 100;
+        currentUploadItem.isSingle = true;
+        currentUploadItem.uploadProgeress = progress;
+        setFileList([...newFileList]);
+      },
+    })
+    // .then((res) => {
+    //   currentUploadItem.uploadStatus = 2;
+    //   currentUploadItem.uploadProgeress = 100;
+    //   setFileList([...newFileList]);
+    // });
+  }
+
+  // 处理切片上传逻辑
+  const handleMultipleUpload = async (record) => {
     // 生成切片
     const chunkList = createFileChunk(record);
     // 开始上传文件
@@ -92,6 +140,7 @@ export default () => {
     for (let current = currentSize; current < File.size; current += chunkSize) {
       // 使用Blob.slice方法来对文件进行分割。
       fileChunkList.push({
+        progress: 0,
         name: File.name,
         file: File.slice(current, current + chunkSize),
       });
@@ -121,18 +170,21 @@ export default () => {
         },
         url: `${host}/upload-chunk`,
         cancelToken: axiosSource.token,
-        onUploadProgress: (uploadInfo) => {
-          // 计算上传百分比
-          const progress = (uploadInfo.loaded / uploadInfo.total) * 100;
-          currentUploadItem.uploadProgeress = progress;
+        onUploadProgress: uploadInfo => {
+          let chunkUploadInfo = {};
+          // 计算当前切片上传百分比  已上传数/总共需要上传数(这里计算的是每个切片的上传进度)
+          const chunkProgress = Number((uploadInfo.loaded / uploadInfo.total));
+          chunkUploadInfo[index] = chunkProgress;
+          currentUploadItem.isSingle = false;
+          // 总的上传百分比是由 切片上传进度 * 切片分数占比
+          currentUploadItem.chunkUploadInfo = {
+            ...currentUploadItem.chunkUploadInfo,
+            ...chunkUploadInfo
+          };
+          console.log('=== currentUploadItem ===', currentUploadItem);
           setFileList([...newFileList]);
         },
-      }).then((res) => {
-        const { data } = res;
-        currentUploadItem.currentChunk = data;
-        currentUploadItem.uploadProgeress = 100;
-        setFileList([...newFileList]);
-      });
+      })
     });
     // 开始同步上传切片
     await axios
@@ -182,16 +234,21 @@ export default () => {
   // 清空文件夹
   const handleEmptyUpload = () => {
     setFileList([]);
+    inputRef.current.value = null;
     axios.get(`${host}/rm-upload-files`).then(() => Notify.success('清空文件夹成功'));
   };
 
   const events = {
-    handleStartUpload: (record) => {
+    handleStartUpload: (record, type) => {
       if (record.uploadStatus === 3) {
         // 走继续上传逻辑
         handleContinueUpload(record);
       } else {
-        handleUpload(record);
+        if (type === 'multiple') {
+          handleMultipleUpload(record);
+        } else {
+          handleSingleUpload(record);
+        }
       }
     },
     handleOpenFinder,
@@ -202,8 +259,8 @@ export default () => {
     <div className="upload-wrap">
       <div className="upload-config">
         <RadioGroup onChange={(e) => setChunkType(e.target.value)} value={chunkType}>
-          <Radio value="num">切片数量</Radio>
-          <Radio value="size">切片大小</Radio>
+          <Radio value="num">根据切片数量</Radio>
+          <Radio value="size">根据切片大小</Radio>
         </RadioGroup>
       </div>
       <div className="upload-action">

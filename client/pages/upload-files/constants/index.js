@@ -1,5 +1,5 @@
 import React from 'react';
-import { Tag, Link, InlineLoading } from 'zent';
+import { Tag, Link, Progress, InlineLoading } from 'zent';
 import { converSize } from '../utils';
 import ChunkShow from '../components/chunkShow';
 
@@ -10,11 +10,20 @@ export const uploadStatus = {
   3: '暂停中',
 };
 
+export const getSliceFileUpload = (chunkUploadInfo = {}) => {
+  let progress = 0;
+  const chunkCountArr = Object.keys(chunkUploadInfo);
+  chunkCountArr.forEach(chunkIdx => {
+    progress += chunkUploadInfo[chunkIdx] * (100 / chunkCountArr.length)
+  })
+  return progress;
+}
+
 export const mockData = [
   {
     fileName: '测试_未上传',
     fileType: 'img',
-    fileSize: '33333',
+    fileSize: 122233,
     uploadStatus: 0,
   },
   {
@@ -50,12 +59,16 @@ export const getColumns = ({ chunkType, events }) => {
     },
     {
       title: '上传状态',
+      textAlign: 'left',
       name: 'uploadStatus',
-      bodyRender: ({ uploadStatus, currentChunk, chunkCount, uploadProgeress = 0 }) => {
+      bodyRender: record => {
+        const { isSingle, uploadStatus, currentChunk, chunkCount, chunkUploadInfo = {} } = record;
+        console.log('=== record ===', record);
+        const uploadProgress = isSingle ? uploadProgeress : getSliceFileUpload(chunkUploadInfo);
+        console.log('uploadProgress', uploadProgress);
         if (uploadStatus === 0) {
-          return <Tag theme="grey">未上传</Tag>;
+          return <Tag theme="yellow">未上传</Tag>;
         } else if (uploadStatus === 1) {
-          console.log('chunkType', chunkType);
           const isSize = chunkType === 'size';
           return (
             <>
@@ -64,12 +77,12 @@ export const getColumns = ({ chunkType, events }) => {
                   {currentChunk} / {chunkCount}
                 </span>
               )}
-              <InlineLoading
-                loading
-                icon="circle"
-                iconText={`${uploadProgeress.toFixed(2)}%`}
-                textPosition={isSize ? 'right' : 'left'}
-              />
+              <Progress percent={uploadProgress.toFixed(2)} format={percent => (
+                <div>
+                  <div>总进度</div>
+                  <div>{percent}%</div>
+                </div>
+              )} />
             </>
           );
         } else if (uploadStatus === 2) {
@@ -107,11 +120,12 @@ export const getColumns = ({ chunkType, events }) => {
             暂停
           </span>
           <span
-            onClick={() => handleStartUpload(record)}
+            onClick={() => handleStartUpload(record, 'multiple')}
             className={![0, 3].includes(record.uploadStatus) ? 'button-disabled' : ''}
           >
             {record.uploadStatus === 3 ? '继续上传' : '上传'}
           </span>
+          <span onClick={() => handleStartUpload(record, 'single')}>单文件上传</span>
         </div>
       ),
     },
