@@ -1,0 +1,9 @@
+.chunk-block {
+  width: 10px;
+  height: 10px;
+  display: inline-block;
+  background-color: #eee;
+  &-done {
+    background-color: blue;
+  }
+}

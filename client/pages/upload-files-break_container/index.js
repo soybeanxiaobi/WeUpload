@@ -3,7 +3,7 @@ import { Grid, Button, Notify, Radio } from 'zent';
 import axios from 'axios';
 import find from 'lodash/find';
 
-import { getColumns, mockData } from './constants';
+import { getColumns, uploadStatusMap } from './constants';
 import { createUploadId } from './utils';
 
 import './index.scss';
@@ -16,7 +16,7 @@ const axiosSource = axiosCancelToken.source();
 export default () => {
   /** 根据数量切分切片 */
   const FILE_CHUNK_NUM = 5;
-  /** 根据大小切分切片,默认5M */
+  /** 根据大小切分切片,每个切片默认默认5M */
   const FILE_CHUNK_SIZE = 5 * 1024 * 1024;
   const inputRef = useRef(null);
   const [chunkType, setChunkType] = useState('num');
@@ -27,25 +27,21 @@ export default () => {
    */
   const [chunkUploadList, setChunkUploadList] = useState([]);
 
+  // 获取已上传文件
   // const getInitFiles = async () => {
-  //   const result = await axios.get(`${host}/get-upload-files`, {
-  //     responseType: 'blob'
-  //   });
+  //   const result = await axios.get(`${host}/get-upload-files`);
   //   console.log('result.data', result.data);
-  //   const blobUrl = URL.createObjectURL(result.data);
-  //   console.log('=== blobUrl ===', blobUrl);
-  //   window.open(blobUrl);
   // }
 
-  //   // 加载文件
+  // 获取已上传的切片
+  // const getUploadedChunk = async () => {
+
+  // }
+
+  //   // 初始化
   //   useEffect(() => {
   //     getInitFiles()
   //   }, []);
-
-  const readFileByPath = () => {
-    // const result = await axios.get(`${host}/read-file?path=${record.fileName}`);
-    console.log('result', result);
-  };
 
   // 打开文件选择框
   const handleAddFile = () => {
@@ -56,7 +52,6 @@ export default () => {
   // 选择文件并添加到表格里
   const handleFileSelect = async (e) => {
     const File = e.target.files[0];
-    console.log('File', File);
     if (File) {
       // 判断文件是否有上传记录,如果有,则断点续传
       const { data: { hasChunk = false, uploadedChunkCount = 0 } = {} } = await axios.get(
@@ -69,10 +64,10 @@ export default () => {
         fileType: File.type,
         fileSize: File.size,
         File,
-        uploadStatus: hasChunk ? 3 : 0, // 如果有切片记录,则直接为暂停状态
-        currentChunk: uploadedChunkCount,
-        uploadProgeress: hasChunk ? 100 : 0,
         chunkCount,
+        uploadProgress: 0,
+        currentChunk: uploadedChunkCount,
+        uploadStatus: hasChunk ? uploadStatusMap.pause : uploadStatusMap.pending, // 如果有切片记录,则直接为暂停状态
       };
       /**
        * 判断文件是否已经上传
@@ -85,6 +80,7 @@ export default () => {
         filesToCurrent.uploadStatus = 2;
         Notify.success('文件已存在,秒传成功');
       }
+      console.log('上传文件信息', filesToCurrent);
       setFileList([...fileList, filesToCurrent]);
     }
   };
@@ -111,15 +107,15 @@ export default () => {
         // 计算上传百分比
         const progress = (uploadInfo.loaded / uploadInfo.total) * 100;
         currentUploadItem.isSingle = true;
-        currentUploadItem.uploadProgeress = progress;
+        currentUploadItem.uploadProgress = progress;
         setFileList([...newFileList]);
       },
     })
-    // .then((res) => {
-    //   currentUploadItem.uploadStatus = 2;
-    //   currentUploadItem.uploadProgeress = 100;
-    //   setFileList([...newFileList]);
-    // });
+      .then(() => {
+        currentUploadItem.uploadStatus = 2;
+        currentUploadItem.uploadProgress = 100;
+        setFileList([...newFileList]);
+      });
   }
 
   // 处理切片上传逻辑
@@ -133,18 +129,19 @@ export default () => {
   // 生成文件切片
   const createFileChunk = ({ File }, currentStart = 0) => {
     const fileChunkList = [];
-    // const blobSlice = File.prototype.slice || File.prototype.mozSlice || File.prototype.webkitSlice;
-    // 实现方法1: 根据数量计算切分后大小
     const chunkSize = chunkType === 'num' ? Math.ceil(File.size / FILE_CHUNK_NUM) : FILE_CHUNK_SIZE;
     const currentSize = chunkSize * currentStart;
+    console.log('chunkSize', chunkSize);
+    console.log('currentSize', currentSize);
+    console.log('File.name', File.name);
     for (let current = currentSize; current < File.size; current += chunkSize) {
-      // 使用Blob.slice方法来对文件进行分割。
       fileChunkList.push({
-        progress: 0,
-        name: File.name,
+        name: `${File.name.split('.')[0]}-chunk-${fileChunkList.length + 1}`,
+        // 使用Blob.slice方法来对文件进行分割。
         file: File.slice(current, current + chunkSize),
       });
     }
+    console.log('生成的切片信息', fileChunkList);
     return fileChunkList;
   };
 
@@ -158,10 +155,6 @@ export default () => {
       let formData = new FormData();
       formData.append('name', name);
       formData.append('file', file);
-      /**
-       * 因为流的http请求是并发的,后端要按顺序合并,必须要加入文件流顺序
-       */
-      formData.append('index', currentChunk + index);
       return axios({
         method: 'post',
         data: formData,
@@ -174,6 +167,8 @@ export default () => {
           let chunkUploadInfo = {};
           // 计算当前切片上传百分比  已上传数/总共需要上传数(这里计算的是每个切片的上传进度)
           const chunkProgress = Number((uploadInfo.loaded / uploadInfo.total));
+          console.log('当前上传切片序号:', index);
+          console.log('当前上传切片进度', `${(chunkProgress * 100).toFixed(2)}%`);
           chunkUploadInfo[index] = chunkProgress;
           currentUploadItem.isSingle = false;
           // 总的上传百分比是由 切片上传进度 * 切片分数占比
@@ -181,7 +176,6 @@ export default () => {
             ...currentUploadItem.chunkUploadInfo,
             ...chunkUploadInfo
           };
-          console.log('=== currentUploadItem ===', currentUploadItem);
           setFileList([...newFileList]);
         },
       })
@@ -196,12 +190,12 @@ export default () => {
             fileName,
             chunkCount: chunkType === 'num' ? FILE_CHUNK_NUM : Math.ceil(fileSize / FILE_CHUNK_SIZE),
           })
-          .then(() => {
-            currentUploadItem.uploadStatus = 2;
-            currentUploadItem.uploadProgeress = 100;
-            setFileList([...newFileList]);
-            Notify.success('上传成功');
-          });
+      })
+      .then(() => {
+        currentUploadItem.uploadStatus = 2;
+        currentUploadItem.uploadProgress = 100;
+        setFileList([...newFileList]);
+        Notify.success('上传成功');
       })
       .catch((err) => {
         console.log('axios err', err);
@@ -267,9 +261,6 @@ export default () => {
         <input type="file" ref={inputRef} style={{ display: 'none' }} onChange={handleFileSelect} />
         <Button type="primary" onClick={handleAddFile}>
           添加文件
-        </Button>
-        <Button type="primary" outline>
-          全部上传
         </Button>
         <Button outline type="primary" onClick={handleEmptyUpload}>
           清空文件夹

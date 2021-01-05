@@ -1,0 +1,20 @@
+.upload-wrap {
+  .upload-config {
+    margin-bottom: 16px;
+  }
+  .upload-action {
+    margin-bottom: 16px;
+  }
+  .tag-extra {
+    vertical-align: middle;
+  }
+  .col-action {
+    span {
+      cursor: pointer;
+      color: #155bd4;
+      & + span {
+        margin-left: 16px;
+      }
+    }
+  }
+}

@@ -32,11 +32,11 @@ app.use(router.routes());
  */
 router.get('/get-upload-record', async (ctx) => {
   const { name } = ctx.query;
-  const streamPath = `${chunksPath}/${name}`;
+  // const streamPath = `${chunksPath}/${name}`;
   let streamList;
-  if (fs.existsSync(streamPath)) {
-    streamList = fs.readdirSync(streamPath);
-  }
+  // if (fs.existsSync(streamPath)) {
+  //   streamList = fs.readdirSync(streamPath);
+  // }
   const hasChunk = streamList ? Boolean(streamList.length) : false;
   ctx.status = 200;
   ctx.body = {
@@ -63,14 +63,16 @@ router.get('/chekck-file-upload', async (ctx) => {
 /**
  * 接收单个文件上传
  */
-router.post('/upload-single-file', koaMulterUpload.single('file'), async (ctx) => {
-  const { fileName } = ctx.req.body;
-  const file = ctx.req.file;
-  const fileFullPath = `${uploadFilePath}/${fileName}`;
-  // fs.writeFileSync(fileFullPath, '');
-  await fs.appendFileSync(fileFullPath, file);
+router.post('/upload-single-file', koaMulterUpload.single('singleFile'), async (ctx) => {
+  const { name } = ctx.req.body;
+  const { path } = ctx.req.file;
+  const fileFullPath = `${uploadFilePath}/${name}`;
+  console.log('fileFullPath', fileFullPath);
+  fs.appendFileSync(fileFullPath, fs.readFileSync(path));
+  /** 删除chunk文件 */
+  // fs.emptyDirSync(path);
   ctx.status = 200;
-  ctx.res.end('上传成功');
+  ctx.res.end('successful');
 })
 
 /**
@@ -82,20 +84,17 @@ router.post('/upload-chunk', koaMulterUpload.single('file'), async (ctx) => {
    * ctx.req.file 文件流信息
    * ctx.req.body 请求参数
    */
-  const { name, index } = ctx.req.body;
+  const { name } = ctx.req.body;
   const file = ctx.req.file;
-  const chunkName = `${chunksPath}/${name}/${name}-chunk-${index}`;
-  /** 创建对应流的目录 */
-  if (!fs.existsSync(`${chunksPath}/${name}`)) {
-    fs.mkdirsSync(`${chunksPath}/${name}`);
-  }
+  const chunkName = `${chunksPath}/${name}`;
+  console.log('=== file ===', file);
   /**
    * 重命名二进制流文件
    * 注意路径需要对齐
    */
   fs.renameSync(file.path, chunkName);
   ctx.status = 200;
-  ctx.res.end(index);
+  ctx.res.end(`upload success!`);
 });
 
 /**
@@ -112,22 +111,22 @@ router.post('/merge-chunk', async (ctx) => {
    */
   const { fileName = '未命名', chunkCount } = ctx.request.body || {};
   // 1.创建存储文件,初始为空
-  const file = `${uploadFilePath}/${fileName}`;
-  fs.writeFileSync(file, '');
+  const filePath = `${uploadFilePath}/${fileName}`;
+  fs.writeFileSync(filePath, '');
+  console.log('chunkCount', chunkCount);
   // 2.读取所有chunk数据
   // 3.开始写入数据
-  for (let idx = 1; idx < chunkCount; idx++) {
+  for (let idx = 1; idx <= chunkCount; idx++) {
     /**
-     * chunk文件名格式: fileName + '-' + index
-     * 例如: 《陪著你走》伴奏Variation.pdf-0
+     * 约定的chunk文件名格式: fileName + '-' + index
      */
-    const chunkFile = `${chunksPath}/${fileName}/${fileName}-chunk-${idx}`;
-    fs.appendFileSync(file, fs.readFileSync(chunkFile));
+    const chunkFile = `${chunksPath}/${fileName}-chunk-${idx}`;
+    fs.appendFileSync(filePath, fs.readFileSync(chunkFile));
   }
   /** 删除chunk文件 */
   fs.emptyDirSync(`${chunksPath}/${fileName}`);
   ctx.status = 200;
-  ctx.res.end('上传成功');
+  ctx.res.end('successful');
 });
 
 // 打开已上传文件所在文件夹
@@ -142,13 +141,12 @@ router.get('/open-upload-finder', async (ctx) => {
 
 // 获取已上传文件
 router.get('/get-upload-files', async (ctx) => {
-  ctx.body = '我是get-upload-files返回的数据'
-  // const uploadFileList = fs.readdirSync(uploadFilePath);
-  // ctx.body = {
-  //   code: 200,
-  //   msg: 'success',
-  //   data: uploadFileList,
-  // };
+  const uploadFileList = await fs.readdirSync(uploadFilePath);
+  ctx.body = {
+    code: 200,
+    msg: 'success',
+    data: uploadFileList,
+  };
 });
 
 // 清空已上传文件
@@ -197,3 +195,35 @@ router.get('/rm-resources-files', async (ctx) => {
 
 const port = 3001;
 app.listen(port, () => console.log(`监听${port}端口中....`));
+
+const uploadPromise = () => uploadChunkList.map(async ({ name, file }, index) => {
+  let formData = new FormData();
+  formData.append('name', name);
+  formData.append('file', file);
+  /**
+   * 因为流的http请求是并发的,后端要按顺序合并,必须要加入文件流顺序
+   */
+  formData.append('index', currentChunk + index);
+  return axios({
+    method: 'post',
+    data: formData,
+    header: {
+      'Content-type': 'multipart/form-data',
+    },
+    url: `${host}/upload-chunk`,
+    cancelToken: axiosSource.token,
+    onUploadProgress: uploadInfo => {
+      let chunkUploadInfo = {};
+      // 计算当前切片上传百分比  已上传数/总共需要上传数(这里计算的是每个切片的上传进度)
+      const chunkProgress = Number((uploadInfo.loaded / uploadInfo.total));
+      chunkUploadInfo[index] = chunkProgress;
+      currentUploadItem.isSingle = false;
+      // 总的上传百分比是由 切片上传进度 * 切片分数占比
+      currentUploadItem.chunkUploadInfo = {
+        ...currentUploadItem.chunkUploadInfo,
+        ...chunkUploadInfo
+      };
+      setFileList([...newFileList]);
+    },
+  })
+});
