@@ -9,10 +9,12 @@ import './app.scss';
 export default () => (
   <>
     {/* 切片上传 */}
+    {/* <h1>切片上传</h1>
     <div className="app-wrap">
       <UploadFilesChunk />
-    </div>
+    </div> */}
 
+    {/* <h1>断点续传</h1> */}
     {/* 断点续传 */}
     <div className="app-wrap">
       <UploadFilesBreakContainer />
