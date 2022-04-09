@@ -61,6 +61,19 @@ router.get('/chekck-file-upload', async (ctx) => {
 });
 
 /**
+ * 校验上传文件是否有已上传切片
+ */
+router.post('/chekck-file_chunk-upload', async (ctx) => {
+  const { fileName = '' } = ctx.request.body || {};
+  const chunksContinuePath = `${chunksPath}/${fileName}`;
+  let uploadedChunksList = [];
+  if (fs.existsSync(chunksContinuePath)) {
+    uploadedChunksList = fs.readdirSync(chunksContinuePath);
+  }
+  ctx.body = uploadedChunksList
+});
+
+/**
  * 接收单个文件上传
  */
 router.post('/upload-single-file', koaMulterUpload.single('singleFile'), async (ctx) => {
@@ -76,7 +89,7 @@ router.post('/upload-single-file', koaMulterUpload.single('singleFile'), async (
 })
 
 /**
- * 使用@koa/multer实现断点上传
+ * 使用@koa/multer实现切片上传
  */
 router.post('/upload-chunk', koaMulterUpload.single('file'), async (ctx) => {
   /**
@@ -87,11 +100,37 @@ router.post('/upload-chunk', koaMulterUpload.single('file'), async (ctx) => {
   const { name } = ctx.req.body;
   const file = ctx.req.file;
   const chunkName = `${chunksPath}/${name}`;
-  console.log('=== file ===', file);
   /**
    * 重命名二进制流文件
    * 注意路径需要对齐
    */
+  fs.renameSync(file.path, chunkName);
+  ctx.status = 200;
+  ctx.res.end(`upload chunk: ${name} success!`);
+});
+
+/**
+ * 使用@koa/multer实现切片上传+断点续传
+ */
+router.post('/upload-chunk-continue', koaMulterUpload.single('file'), async (ctx) => {
+  /**
+   * axios方法
+   * ctx.req.file 文件流信息
+   * ctx.req.body 请求参数
+   */
+  const { name, fileName } = ctx.req.body;
+  const file = ctx.req.file;
+  const chunksContinuePath = `${chunksPath}/${fileName}`;
+  console.log('chunksContinuePath', chunksContinuePath);
+  console.log('=== file ===', file);
+  if (!fs.existsSync(chunksContinuePath)) {
+    await fs.mkdirs(chunksContinuePath);
+  }
+  /**
+   * 重命名二进制流文件
+   * 注意路径需要对齐
+   */
+  const chunkName = `${chunksPath}/${fileName}/${name}`;
   fs.renameSync(file.path, chunkName);
   ctx.status = 200;
   ctx.res.end(`upload success!`);
@@ -124,7 +163,35 @@ router.post('/merge-chunk', async (ctx) => {
     fs.appendFileSync(filePath, fs.readFileSync(chunkFile));
   }
   /** 删除chunk文件 */
-  fs.emptyDirSync(`${chunksPath}/${fileName}`);
+  // fs.emptyDirSync(`${chunksPath}/${fileName}`);
+  ctx.status = 200;
+  ctx.res.end('successful');
+});
+
+/**
+ * 对流进行存储 - 断点续传
+ */
+router.post('/merge-chunk-continue', async (ctx) => {
+  /**
+   * axios.post方法
+   * ctx.request.body 请求参数
+   */
+  const { fileName = '未命名', chunkCount } = ctx.request.body || {};
+  // 1.创建存储文件,初始为空
+  const filePath = `${uploadFilePath}/${fileName}`;
+  fs.writeFileSync(filePath, '');
+  console.log('chunkCount', chunkCount);
+  // 2.读取所有chunk数据
+  // 3.开始写入数据
+  for (let idx = 1; idx <= chunkCount; idx++) {
+    /**
+     * 约定的chunk文件名格式: fileName + '-' + index
+     */
+    const chunkFile = `${chunksPath}/${fileName}/${fileName}-chunk-${idx}`;
+    fs.appendFileSync(filePath, fs.readFileSync(chunkFile));
+  }
+  /** 删除chunk文件 */
+  // fs.emptyDirSync(`${chunksPath}/${fileName}`);
   ctx.status = 200;
   ctx.res.end('successful');
 });
@@ -227,3 +294,41 @@ const uploadPromise = () => uploadChunkList.map(async ({ name, file }, index) =>
     },
   })
 });
+
+var longestPalindrome = function(s) {
+  let result = "";
+  if(s === '') return '';
+  if(s.length === 1) return s;
+
+  // 寻找某个对称轴为中心的最长回文子串
+  function maxSubstring(left, right) {
+    while (left >= 0 && right < s.length) {
+    if (s[left] === s[right]) {
+        left--;
+        right++;
+    }
+    else break;
+    }
+    // 使用slice的时候是左闭右开结构，所以left要+1指向子串第一个字符
+    left++;
+    // right到末尾使用slice会越界，单独考虑
+    if (right === s.length){
+    // console.log('1 '+s.slice(left));
+    return s.slice(left);
+    }
+    // console.log('2 '+s.slice(left,right));
+    return s.slice(left, right);
+  }
+
+  for (let i = 0; i < s.length - 1; i++) {
+      // 子串长度奇数和偶数都搜索一遍
+      let a = maxSubstring(i, i);
+      let b = maxSubstring(i, i + 1);
+      let temp = a.length > b.length ? a : b;
+      result = result.length > temp.length ? result : temp;
+  }
+  return result;
+};
+console.log("longestPalindrome('aabacc')", longestPalindrome('aabacc')); // aba
+console.log("longestPalindrome('aabaa')", longestPalindrome('aabaa')); // aabaa
+console.log("longestPalindrome('cbbd')", longestPalindrome('cbbd')); //bb

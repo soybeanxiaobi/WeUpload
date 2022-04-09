@@ -55,7 +55,7 @@ export const getColumns = ({ chunkType, events }) => {
   return [
     {
       title: '文件名',
-      width: 600,
+      // width: 600,
       name: 'fileName',
     },
     {
@@ -73,8 +73,9 @@ export const getColumns = ({ chunkType, events }) => {
       textAlign: 'left',
       name: 'uploadStatus',
       bodyRender: record => {
-        const { isSingle, uploadStatus, currentChunk, chunkCount, uploadProgress, chunkUploadInfo = {} } = record;
-        const progress = isSingle ? uploadProgress : getSliceFileUpload(chunkUploadInfo);
+        const { isSingle, uploadStatus, currentChunk, chunkCount, uploadSingleProgress, chunkUploadInfo = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 } } = record;
+        console.log('==== chunkUploadInfo ===', chunkUploadInfo);
+        const progress = isSingle ? uploadSingleProgress : getSliceFileUpload(chunkUploadInfo);
         if (uploadStatus === 0) {
           return <Tag theme="yellow">未上传</Tag>;
         } else if (uploadStatus === 1) {
@@ -86,6 +87,11 @@ export const getColumns = ({ chunkType, events }) => {
                   {currentChunk} / {chunkCount}
                 </span>
               )}
+              <p>
+                <span>
+                  上传切片数量: {currentChunk} / {chunkCount}
+                </span>
+              </p>
               <Progress percent={progress.toFixed(2)} />
             </>
           );
@@ -104,11 +110,11 @@ export const getColumns = ({ chunkType, events }) => {
               <Tag theme="yellow" style={{ marginBottom: 5 }}>
                 暂停中
               </Tag>
-              {/* <p>
+              <p>
                 <span>
                   上传切片数量: {currentChunk} / {chunkCount}
                 </span>
-              </p> */}
+              </p>
               <p>上传进度: {progress.toFixed(2)}%</p>
             </>
           );

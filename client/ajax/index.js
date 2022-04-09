@@ -1,16 +1,4 @@
-// 仅chrome运行
-// const request = new XMLHttpRequest();
-// request.onreadystatechange = () => {
-//   if (request.readyState === 4) {
-//     // 校验code
-//     if (request.status === 200) {
-//       console.log("status 200 request", request);
-//       return request.responseText;
-//     } else {
-//       return request.status;
-//     }
-//   }
-// };
+import axios from 'axios';
 
 export const ajax = ({
   url,
@@ -44,3 +32,23 @@ export const ajax = ({
     }
   });
 };
+
+// 每次调用构建一个新的axios对象,以便于模拟断点续传
+export const smartAxios = () => {
+  const axiosCancelToken = axios.CancelToken;
+  const axiosSourceCancel = axiosCancelToken.source();
+
+  const request = async config => {
+    if(config) {
+      await axios({
+        ...config,
+        cancelToken: axiosSourceCancel.token,
+      })
+    }
+  }
+
+  return {
+    request,
+    axiosSourceCancel,
+  }
+}
